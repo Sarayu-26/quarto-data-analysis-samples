@@ -1,0 +1,232 @@
+---
+title: "Time Series Observations of Salmon Species in the Willamette Falls Fish Passage"
+author:
+  - Sarayu Ramnath 
+format: 
+  html:
+    code-fold: show
+    toc: true
+    embed-resources: true
+theme: simplex
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+## Willamette Falls Fish Passage Time Series Summary
+
+![Tribal member Jade Unger holds a salmon he caught at Willamette Falls in May. (Contributed photo)](fishing-platform-jade-unger.jpg){fig-align="center" width="431"}
+
+## Overview
+
+This dataset contains data of the adult fish (salmon) passage from January 2001 to December 2010 at the Willamette Falls fish ladder on the Willamette River in Oregon. Specifically, this task will look at three salmonid species, Coho, Jack Coho, and Steelhead Salmon to identify temporal and seasonal trends in the adult counts over a 10 year observation period. From these time series graphs we hope to gain insight into seasonal run patterns, and inter-annual variability which will help inform management strategies, assess population health, and evaluate effectiveness of salmon passage infrastructure over time.
+
+**Data Cited:**
+
+Data were shared by and accessed from Columbia River DART (Data Access in Real Time), accessed March 7, 2025.<https://www.cbr.washington.edu/dart/query/adult_graph_text>
+
+```{r}
+library(paletteer)
+library(patchwork)
+library(feasts)
+library(ggplot2)
+library(tidyr)
+library(tsibble)
+library(lubridate)
+library(dplyr)
+library(tidyverse)
+library(here)
+```
+
+```{r}
+fish_raw<-read_csv("willamette_fish_passage.csv")
+```
+
+### Part 1: Original time series
+
+#### Pseudocode:
+
+1.  Filter for Coho, Jack Coho, Steelhead (keep date)
+
+2.  Replace NA values with zero.
+
+3.  Convert date to date class, convert data frame to tsibble.
+
+4.  Plot og time series for each species.
+
+    ```{r}
+    #| fig-cap: "Original Time Series Plot of Jack Coho, Coho, and Steelhead Salmon from 2001-2010.Coho and Jack Coho show similiar seasonal upticks with Coho dramatically increasing count in 2010. Steelhead displays consistent runs. " 
+
+    fish_og_time <- fish_raw |>
+      select(Project, Date, Coho, `Jack Coho`, Steelhead)|>
+      mutate(across(everything(), ~replace(., is.na(.), 0)))  # Replace NA with 0
+
+    # Date is in Date class and convert to tsibble
+    fish_og_time <- fish_og_time |>
+      mutate(Date = lubridate::mdy(Date)) |> # Convert Date column to Date class
+      as_tsibble(key = NULL,index = Date)
+
+
+    f1<-ggplot(fish_og_time, aes(x = Date, y = Coho)) +
+      geom_line(color = "cornflowerblue")+  
+      labs(title = "Adult Salmon Passage Count (Willamette Falls Fish Ladder) ",
+           x = NULL,
+           y = "Coho") +
+      scale_y_continuous(limits = c(0, 1000))+
+      theme_minimal() +  
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+    f2<-ggplot(fish_og_time, aes(x = Date, y = `Jack Coho`)) +
+      geom_line(color = "darkred") + 
+      labs(x = NULL,
+           y = "Jack Coho") +
+      theme_minimal() +  
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+    f3<-ggplot(fish_og_time, aes(x = Date, y = Steelhead)) +
+      geom_line(color = "darkgreen") +  
+      labs(x = NULL,
+           y = "Steelhead") +
+      theme_minimal() +  
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+    og_time_series<-(f1/f2/f3)+
+      plot_layout(guides = "collect")
+    og_time_series
+    ```
+
+The original time series plots show distinct trends in the passage of each species. Steelhead exhibit strong seasonality, with relatively stable counts over the years. Both Coho and Jack Coho show an increasing trend over time even though their counts were low and highly variable from 2001-208. The sharp rise in Coho passage in 2010 suggests a notable shift.
+
+### Part 2: Seasonplots
+
+#### Pseudocode
+
+1.  Convert Date column into YYYY-MM-DD.
+
+2.  Use index_by() to transform data into time series format, use Date as index.
+
+3.  Pivot dataset to combine all species under 'Species' header.
+
+4.  Extract year and month from date column for year and month index, group data by month and species.
+
+5.  Find total count for each species by month by summing in Count values.
+
+6.  Display monthly counts of species in graphs.
+
+```{r}
+#| fig-cap: "Season Plots of Jack Coho, Coho, and Steelhead Salmon from 2001-2010.Coho and Jack Coho show similiar seasonal runs between August and November. Steelhead displays seasonal run from January to July." 
+
+#organize data to show sum of each species for each month 
+fish_season <- fish_og_time |>
+ mutate(Date = as.Date(Date, format = "%Y-%m-%d")) |>
+   as_tsibble(index = Date, key=NULL)|>
+  pivot_longer(cols = c(Coho, `Jack Coho`, Steelhead),
+               names_to = "Species", 
+               values_to = "Count") |>
+   index_by(yr_mo = ~yearmonth(.)) |>
+  group_by(Species)|># Group by year and month using index_by
+  summarize(Total_Count = sum(Count, na.rm = TRUE))
+
+f4<-fish_season |>
+  filter(Species == 'Coho') |>
+  gg_season(y = Total_Count, pal = hcl.colors(n = 4)) +
+  theme_minimal() +
+  labs(x = NULL,
+       y = "Coho", 
+       title= "Season Plots of Adult Salmon Passage Count (Willamette Falls Fish Ladder)  ")
+
+f5<-fish_season |> 
+  filter(Species == 'Jack Coho') |>
+  gg_season(y = Total_Count, pal = hcl.colors(n = 4)) +
+  theme_minimal() +
+  labs(x = NULL,
+       y = " Jack Coho")
+
+
+f6<-fish_season |> 
+  filter(Species == 'Steelhead') |>
+  gg_season(y = Total_Count, pal = hcl.colors(n = 4)) +
+  theme_minimal() +
+  labs(x = NULL,
+       y = "Steelhead")
+
+
+season_plot<-(f4/f5/f6)+
+  plot_layout(guides = "collect")
+season_plot
+```
+
+The season plots of Coho, Jack Coho, and Steelhead Salmon from 2001-2010 reveal distinct seasonal patterns. Coho and Jack Coho exhibit similar seasonal runs with peak passage occurring between August and November, while Steelhead following a different seasonal pattern with the majority of its passage occurring from January to July.
+
+Coho and Jack Coho show an increasing trend from 2007-2010, Coho much more so, suggesting potential improvements in survival, recruitment or favorable environmental conditions. Steelhead maintains a predictable seasonal pattern with minimal inter annual variation, indicating a strong cyclic pattern in migration.
+
+### Part 3: Annual Counts by Species
+
+#### Pseudocode
+
+1.  Reuse approach done in season plot to gain monthly total counts.
+
+2.  Extract year from Date column and group data by year and species.
+
+3.  Find total annual count for each species and sum count values.
+
+4.  Display annual count for each species in graph.
+
+```{r}
+#| fig-cap: "Annual Time Plots of Jack Coho, Coho, and Steelhead Salmon from 2001-2010. Coho and Jack Coho have dynamic years and an increase in count starting in 2008. Steelhead maintains highest consisent counts. " 
+
+fish_annual <- fish_og_time|>
+ mutate(Date = as.Date(Date, format = "%Y-%m-%d"))|>
+   as_tsibble(index = Date, key=NULL)|>
+  pivot_longer(cols = c(Coho, `Jack Coho`, Steelhead),
+               names_to = "Species", 
+               values_to = "Count")|>
+   index_by(year = ~year(.))|>
+  group_by(Species)|># Group by year
+  summarize(Total_Count = sum(Count, na.rm = TRUE))
+
+
+f7<-fish_annual |>
+  filter(Species %in% c("Coho")) %>%
+  ggplot(aes(x = year, y = Total_Count)) +
+  geom_line(size = 0.5, , color = "cornflowerblue") +  # Line plot
+  theme_minimal() +
+  scale_x_continuous(breaks = scales::breaks_pretty())+
+  labs(x = NULL,
+       y = "Coho",
+       title = "Annual Count of Adult Salmon Species") +
+  theme(legend.position = "right")
+
+f8<-fish_annual |>
+  filter(Species %in% c("Jack Coho")) %>%
+  ggplot(aes(x = year, y = Total_Count)) +
+  geom_line(size = 0.5, color = "darkred") +  # Line plot
+  theme_minimal() +
+  scale_x_continuous(breaks = scales::breaks_pretty())+
+  scale_y_continuous(limits = c(0,NA))+
+  labs(x = NULL,
+       y = "Jack Coho") 
+
+f9<-fish_annual |>
+  filter(Species %in% c("Steelhead")) %>%
+  ggplot(aes(x = year, y = Total_Count)) +
+  geom_line(size = 0.5, color = "darkgreen") + 
+  theme_minimal() +
+  scale_x_continuous(breaks = scales::breaks_pretty())+
+  scale_y_continuous(limits = c(0,NA))+
+  labs(x = "Year",
+       y = "Steelhead") 
+
+annual_count<-(f7/f8/f9)
+annual_count
+```
+
+Overall, we might be seeing different population dynamics and potential environmental or management influences affecting each species.
+
+-   Coho: Alternating pattern of high and low counts suggests strong inter-annual variability. Exhibited relatively stable counts around 5000-7000 until there was a dramatic spike in 2009 at 25,000. The large increase could reflect a strong passage return. The decrease in 2010 shows that it is not an upward trend and could be an isolated event.
+
+-   Jack Coho: The extreme low in 2007 followed by a sharp peak in 2008 (3,000) indicates a passage response to specific ocean condition or bottleneck. The population flattening out in 2019 suggests a potential stabilization of population dynamics.
+
+-   Steelhead: The highest count in 2002 (50,000) followed by a decline in 2004 and a plateau around 35,000 indicates a long term decreasing trend. There is a slight increase in recent years which can suggest improved habitat conditions or shifts in productivity.

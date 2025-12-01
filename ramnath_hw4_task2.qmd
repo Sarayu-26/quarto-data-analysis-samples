@@ -1,0 +1,155 @@
+---
+title: "Text Wrangling and Analysis of James Baldwin's 'The Fire Next Time' "
+author:
+  - Sarayu Ramnath 
+date: "3/12/2024"
+format: 
+  html:
+    code-fold: show
+    toc: true
+    embed-resources: true
+theme: simplex
+execute:
+  echo: true
+  message: false
+  warning: false
+---i 
+---
+
+## "The Fire Next Time"
+
+![](image2.jpg){fig-align="center"}
+
+### Overview
+
+I chose to analyze James Baldwin's "The Fire Next Time", a non-fiction book composed of two essays: My Dungeon Shook: Letter to My Nephew on the One Hundredth Anniversary of the Emancipation and Down at the Cross: Letter from a Region in My Mind. In the first essay, Baldwin writes to his 14-year-old nephew, encouraging him to remain empowered despite the discrimination he will inevitably face in America. The second essay explores Baldwin’s own upbringing and how it shaped his perspectives on race and religion. I find it compelling to compare the word patterns between the two essays because it offers a unique way to analyze a seminal work on race relations. Given its influence, applying quantitative analysis to a piece of critical thought, two approaches that might seem contradictory, could provide insights into Baldwin’s rhetorical and thematic choices.
+
+Data Cited:
+
+The Fire Next Time. James Baldwin. Vintage International. Vintage Books: A Division of Random House, Inc. New York. Pdf-Coffee. <https://pdfcoffee.com/the-fire-next-time-james-baldwin-5-pdf-free.html>. (PDF Download).
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(pdftools)
+library(ggwordcloud)
+library(textdata)
+```
+
+```{r}
+fire_text <- pdftools::pdf_text(here::here('data', 'fire_next_time.pdf'))
+```
+
+### Prep Data
+
+Pseudocode:
+
+1.  Wrangle data into tidy format, tokenize data, count words, remove stop words.
+
+```{r}
+
+#prep data 
+fire_lines <- data.frame(fire_text) %>% 
+  mutate(page = 1:n()) %>%
+  mutate(text_full = str_split(fire_text, pattern = '\\n')) %>% 
+  unnest(text_full) %>% 
+  mutate(text_full = str_trim(text_full)) 
+
+#tidy data
+fire_essay <- fire_lines %>% 
+  slice(-(1:12)) %>%  
+  mutate(essay = case_when(
+    page >= 13 & page <= 22 ~ "My Dungeon Shook",
+    page >= 23 & page <= 118 ~ "Down At the Cross"
+  ))|>
+  drop_na(essay)
+
+#tokenize the data 
+fire_words <- fire_essay |> 
+  unnest_tokens(word, text_full) |> 
+  select(-fire_text)
+
+#count words
+fire_wordcount <- fire_words |> 
+  count(essay, word)
+
+#remove stop words
+wordcount_clean <- fire_wordcount %>% 
+  anti_join(stop_words, by = 'word')|>
+  filter(!word %in% c("james", "baldwin"))
+```
+
+### Frequently Used Words
+
+```{r}
+#|fig-cap: Top word is "white", referring to race. This is a trend in the following figures. There are overlapping trending words between essays such as black, people, and world. 
+ 
+top_10_words <- wordcount_clean %>% 
+  group_by(essay) %>% 
+  arrange(-n) %>% 
+  slice(1:10) %>%
+  ungroup()
+
+# Make some graphs: 
+ggplot(data = top_10_words, aes(x = n, y = word)) +
+  geom_col(fill = "cornflowerblue") +
+  labs(x = "Word Count", y= NULL, title = "Top 10 Words in each Essay")+
+  facet_wrap(~essay, scales = "free")
+```
+
+*Figure 1: Top word is "white", referring to race. This is a trend in the following figures. There are overlapping trending words between essays such as black, people, and world.*
+
+### Word Cloud
+
+```{r}
+#|fig-cap: Word Cloud displaying the top five words "The Fire Next Time" White, Black, People, Power, Negro. Makes you think. 
+
+essay_top100 <- wordcount_clean %>% 
+  arrange(-n) %>% 
+  slice(1:100)
+
+ggplot(data = essay_top100, aes(label = word)) +
+  geom_text_wordcloud(aes(color = n, size = n), shape = "diamond") +
+  scale_size_area(max_size = 10) +
+  scale_color_gradientn(colors = c("darkgreen","blue","purple")) +
+  theme_minimal()
+```
+
+*Figure 2: Word Cloud displaying the top five words in "The Fire Next Time": White, Black, People, Power, Negro. Makes you think.*
+
+### Sentiment Analysis
+
+#### Psuedocode:
+
+1.  Call NRC lexicon.
+
+2.  Do inner join by word and apply get_sentiments.
+
+3.  Find sentiment counts and display figures.
+
+```{r}
+#|fig-cap: NRC Sentiment analysis of the collective two essays. Overall the tone of the text, despite being a heavy subject, was positive and inspirational. 
+
+nrc_lex <- get_sentiments(lexicon = "nrc")
+
+fire_nrc <- fire_words %>% 
+  inner_join(get_sentiments("nrc"), by = 'word')
+
+fire_nrc_counts <- fire_nrc %>% 
+  group_by(sentiment) %>%
+  summarize(n = n())
+
+ggplot(data = fire_nrc_counts, aes(x = n, y = sentiment)) +
+  geom_col(fill = "cornflowerblue")+
+  labs(x= "Word Count", y = NULL, title = "Sentiment Analysis Using NRC Lexicon")
+```
+
+*Figure 3: NRC Sentiment analysis of the collective two essays. Overall the tone of the text, despite being a heavy subject, was positive and inspirational.*
+
+### Takeaway
+
+From the sentiment lexicon, *The Fire Next Time* is a text that deeply resonates and inspires. Baldwin’s essays embody resistance and resilience as he examines power dynamics and the historical forces that sustain inequality for Black Americans. He repeatedly uses the term "white" to highlight systemic racism, emphasizing that it is not just individual prejudice but a self-perpetuating cycle that benefits white people at the expense of Black communities. By doing so, Baldwin challenges white supremacy and urges the nation to confront its history of racism.
+
+However, the sentiment lexicon also detected a high presence of positive words, including those associated with trust and joy. Despite systemic oppression, Baldwin ultimately calls for love and forgiveness, urging those who are oppressed not to be consumed by hatred. He presents love as the solution. White Americans can embrace the diversity of their country while acknowledging the horrors that shaped it. Black Americans do not need to meet hatred with hatred. The essay ends with a message of hope but also a warning: if Americans do not come together, the country will fall apart. Written in 1963 and analyzed in 2025, this text remains just as relevant today as it was 62 years ago.
+
+**Citation for NRC lexicon**: Crowdsourcing a Word-Emotion Association Lexicon, Saif Mohammad and Peter Turney, Computational Intelligence, 29 (3), 436-465, 2013.
