@@ -17,7 +17,7 @@ This notebook illustrates qualitative text wrangling and exploratory analysis us
 - `ggwordcloud`  
 - `textdata`  
 
-It includes text cleaning, tokenization, stop-word filtering, term frequency summaries, and visualizations.  
+It includes text cleaning, tokenization, stop-word filtering, term frequency summaries, and visualizations. The .qmd includes the complete methods and code used for this assignment  
 
 The HTML file is included because it renders cleanly and is small enough for GitHub.
 
@@ -39,7 +39,7 @@ This notebook demonstrates a workflow for time series data using:
 
 It includes data wrangling, converting to tsibble formats, time series interpretations, and visualization. 
 
-The original HTML output exceeded GitHub’s size limit due to figure resolution, so a **PDF** version is included instead. The `.qmd` contains the full reproducible analysis.
+The original HTML output exceeded GitHub’s size limit due to figure resolution, so a **PDF** version is included instead. The .qmd includes the complete methods and code used for this assignment. 
 
 ---
 
